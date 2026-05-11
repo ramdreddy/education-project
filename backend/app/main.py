@@ -15,6 +15,11 @@ from app.authz import (
 )
 from app.deps import AuthedSupabase, get_authed_supabase, get_supabase
 from app.rubric import build_classroom_rubric
+from app.services.ai_service import (
+    observation_record_text,
+    suggest_professional_development_goals,
+    summarize_observation_for_teacher,
+)
 
 app = FastAPI(title="School Evaluation API")
 
@@ -266,6 +271,61 @@ def delete_observation(observation_id: UUID, supabase: Client = Depends(get_supa
     res = supabase.table("observations").delete().eq("id", str(observation_id)).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Observation not found or not permitted.")
+
+
+@app.post("/observations/{observation_id}/ai-summary")
+def ai_summarize_observation(
+    observation_id: UUID, ctx: AuthedSupabase = Depends(get_authed_supabase)
+) -> Dict[str, Any]:
+    """Summarize observation narrative into three high-impact bullets (LLM or preview mode)."""
+    supabase = ctx.client
+    get_user_id_or_401(supabase, ctx.access_token)
+    res = (
+        supabase.table("observations")
+        .select("*")
+        .eq("id", str(observation_id))
+        .limit(1)
+        .execute()
+    )
+    rows = res.data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Observation not found or not permitted.")
+    row = rows[0]
+    full_text = observation_record_text(row)
+    if len(full_text.strip()) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Add more observation notes (or strengths/growth areas) before generating a summary.",
+        )
+    bullets, source = summarize_observation_for_teacher(full_text)
+    if not bullets:
+        raise HTTPException(status_code=400, detail="Could not produce a summary from the provided text.")
+    return {"bullets": bullets, "source": source}
+
+
+@app.post("/goals/ai-recommendations")
+def ai_goal_recommendations(ctx: AuthedSupabase = Depends(get_authed_supabase)) -> Dict[str, Any]:
+    """Suggest two professional development goals from this educator's observation history."""
+    supabase = ctx.client
+    uid = get_user_id_or_401(supabase, ctx.access_token)
+    me = fetch_my_teacher_row(supabase, uid)
+    if not me:
+        raise HTTPException(
+            status_code=404,
+            detail="Create your educator profile before requesting AI-assisted goal ideas.",
+        )
+    tid = me["id"]
+    res = (
+        supabase.table("observations")
+        .select("*")
+        .eq("teacher_id", tid)
+        .order("observed_at", desc=True)
+        .limit(25)
+        .execute()
+    )
+    observations = res.data or []
+    suggestions, source = suggest_professional_development_goals(observations)
+    return {"suggestions": suggestions, "source": source}
 
 
 # --- Current educator profile ---

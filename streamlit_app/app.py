@@ -5,7 +5,13 @@ from supabase import create_client
 
 from config_env import SUPABASE_KEY, SUPABASE_URL
 from http_api import api_request
-from views import classroom_observation, instructional_summary, overview, professional_goals
+from views import (
+    classroom_observation,
+    instructional_summary,
+    observation_detail,
+    overview,
+    professional_goals,
+)
 
 
 def _require_supabase() -> None:
@@ -99,6 +105,7 @@ def main() -> None:
                 [
                     "Overview & roster",
                     "Classroom observation",
+                    "Observation detail",
                     "Professional growth goals",
                     "Instructional effectiveness summary",
                 ],
@@ -117,6 +124,8 @@ def main() -> None:
         overview.render()
     elif nav == "Classroom observation":
         classroom_observation.render()
+    elif nav == "Observation detail":
+        observation_detail.render()
     elif nav == "Professional growth goals":
         professional_goals.render()
     elif nav == "Instructional effectiveness summary":

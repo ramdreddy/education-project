@@ -21,3 +21,8 @@ def _normalize_supabase_url(url: str) -> str:
 
 SUPABASE_URL = _normalize_supabase_url(os.getenv("SUPABASE_URL", ""))
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or ""
+
+# Optional — AI features use preview output when unset or on model errors
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")

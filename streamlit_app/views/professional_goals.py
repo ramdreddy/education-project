@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import streamlit as st
 
 from http_api import api_request
+from ui_ai import render_ai_suggestions
 
 
 def _my_teacher() -> Optional[Dict[str, Any]]:
@@ -38,6 +39,27 @@ def render() -> None:
 
     tid = me["id"]
     st.markdown(f"**Educator:** {me.get('full_name', '')}")
+
+    st.divider()
+    st.markdown("##### ✨ AI-assisted recommendations")
+    st.caption(
+        "Grounded in your recent observation scores—use as drafts, then refine with your coach."
+    )
+    if st.button("Suggest two goals from observation history", key="goals_ai_btn"):
+        with st.spinner("Analyzing observation patterns…"):
+            ar = api_request("POST", "/goals/ai-recommendations")
+        if ar.is_success:
+            st.session_state["_goals_ai_last"] = ar.json()
+        else:
+            st.error(ar.text)
+            st.session_state.pop("_goals_ai_last", None)
+    ai_last = st.session_state.get("_goals_ai_last")
+    if ai_last and isinstance(ai_last, dict) and ai_last.get("suggestions"):
+        render_ai_suggestions(
+            "Suggested professional development goals",
+            ai_last["suggestions"],
+            str(ai_last.get("source", "mock")),
+        )
 
     if st.session_state.get("_goals_teacher_id") != tid:
         st.session_state["_goals_teacher_id"] = tid
