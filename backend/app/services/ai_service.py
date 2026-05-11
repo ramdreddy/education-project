@@ -191,3 +191,47 @@ def suggest_professional_development_goals(
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
         pass
     return _mock_goal_suggestions(observations), "mock"
+
+
+def _mock_leadership_briefing(summary_rows: List[Dict[str, Any]]) -> str:
+    n_t = len(summary_rows)
+    scored = sum(1 for r in summary_rows if r.get("avg_overall_score") is not None)
+    obs_n = sum(int(r.get("observation_count") or 0) for r in summary_rows)
+    return (
+        "## Executive overview\n"
+        f"This **preview** briefing reflects **{n_t}** educator roster entries visible to you, "
+        f"with holistic averages present for **{scored}** educators and **{obs_n}** total observation "
+        "records represented in the exportable summary.\n\n"
+        "## Strengths in the data\n"
+        "- Consistent use of structured walkthroughs builds a shared evidence base across teams.\n\n"
+        "## Watch items\n"
+        "- Educators without recent scored visits may need prioritized scheduling for equity of feedback.\n\n"
+        "## Recommended leadership actions\n"
+        "- Run a short calibration session on the holistic rubric to tighten inter-rater consistency.\n"
+        "- Pair leaders with grade-level teams that show the widest spread in classroom culture scores.\n"
+    )
+
+
+def generate_leadership_briefing(summary_rows: List[Dict[str, Any]]) -> Tuple[str, SourceKind]:
+    """Markdown executive briefing from instructional observation summary rows."""
+    payload = json.dumps(summary_rows, default=str)[:14000]
+    system = (
+        "You are a chief academic officer preparing an internal leadership briefing. "
+        "Use professional, neutral language. Do not invent statistics beyond the JSON provided."
+    )
+    user = (
+        "Using ONLY the JSON array below (each item: educator identifiers and observation aggregates), "
+        "write a concise Markdown briefing with exactly these sections:\n"
+        "## Executive overview\n## Strengths in the data\n## Watch items\n## Recommended leadership actions\n\n"
+        "Use bullet lists where helpful. Keep under 450 words. If counts or averages are missing, acknowledge gaps.\n\n"
+        f"DATA:\n{payload}"
+    )
+    if not OPENAI_API_KEY:
+        return _mock_leadership_briefing(summary_rows), "mock"
+    try:
+        raw = _chat_completion(user, system)
+        if raw.strip():
+            return raw.strip(), "openai"
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+        pass
+    return _mock_leadership_briefing(summary_rows), "mock"

@@ -84,3 +84,18 @@ def render_ai_suggestions(
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_ai_markdown_briefing(title: str, markdown_body: str, source: str) -> None:
+    """Sparkle header + rendered Markdown body for leadership AI briefings."""
+    _inject_ai_styles_once()
+    badge = "Live model" if source == "openai" else "Preview mode (no API key configured)"
+    st.markdown(
+        f"""
+        <div class="ai-panel">
+            <div class="ai-badge">✨ {html.escape(title)} · {html.escape(badge)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(markdown_body)

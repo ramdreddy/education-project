@@ -28,8 +28,8 @@ def _invalidate_goals_cache() -> None:
 def render() -> None:
     st.header("Professional growth goals")
     st.caption(
-        "Set outcomes aligned to your instructional priorities. Only you can view and edit "
-        "goals tied to your educator profile."
+        "Set outcomes aligned to your instructional priorities, monitor completion, and capture "
+        "evidence notes. Only you can view and edit goals tied to your educator profile."
     )
 
     me = _my_teacher()
@@ -90,6 +90,7 @@ def render() -> None:
                         "description": desc.strip(),
                         "target_date": target.isoformat(),
                         "status": status_new,
+                        "progress_percent": 0,
                     },
                 )
                 if r.is_success:
@@ -110,7 +111,11 @@ def render() -> None:
     status_options = ["active", "paused", "completed"]
     for g in goals:
         with st.expander(f"{g.get('description', '')[:80]}{'…' if len(g.get('description', '')) > 80 else ''}"):
-            st.caption(f"Target date: **{g.get('target_date', '')}** · Current status: **{g.get('status', '')}**")
+            pct = int(g.get("progress_percent") or 0)
+            st.caption(
+                f"Target date: **{g.get('target_date', '')}** · Status: **{g.get('status', '')}** · "
+                f"Progress: **{pct}%**"
+            )
             cur = g.get("status", "active")
             idx = status_options.index(cur) if cur in status_options else 0
             new_status = st.selectbox(
@@ -119,7 +124,20 @@ def render() -> None:
                 index=idx,
                 key=f"st_{g['id']}",
             )
-            c1, c2 = st.columns(2)
+            prog = st.slider(
+                "Progress toward goal",
+                min_value=0,
+                max_value=100,
+                value=min(100, max(0, pct)),
+                key=f"pg_{g['id']}",
+            )
+            prog_note = st.text_area(
+                "Progress evidence & checkpoints",
+                value=g.get("progress_note") or "",
+                height=90,
+                key=f"pn_{g['id']}",
+            )
+            c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("Save status", key=f"sv_{g['id']}"):
                     pr = api_request("PATCH", f"/goals/{g['id']}", json={"status": new_status})
@@ -130,6 +148,22 @@ def render() -> None:
                     else:
                         st.error(pr.text)
             with c2:
+                if st.button("Save progress", key=f"sp_{g['id']}"):
+                    pr = api_request(
+                        "PATCH",
+                        f"/goals/{g['id']}",
+                        json={
+                            "progress_percent": int(prog),
+                            "progress_note": prog_note.strip() or None,
+                        },
+                    )
+                    if pr.is_success:
+                        st.success("Progress saved.")
+                        _invalidate_goals_cache()
+                        st.rerun()
+                    else:
+                        st.error(pr.text)
+            with c3:
                 if st.button("Remove goal", key=f"rm_{g['id']}"):
                     dr = api_request("DELETE", f"/goals/{g['id']}")
                     if dr.is_success:

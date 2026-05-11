@@ -15,13 +15,22 @@ from app.authz import (
 )
 from app.deps import AuthedSupabase, get_authed_supabase, get_supabase
 from app.rubric import build_classroom_rubric
+from app.routers import performance_reviews as performance_reviews_routes
+from app.routers import reports as reports_routes
 from app.services.ai_service import (
     observation_record_text,
     suggest_professional_development_goals,
     summarize_observation_for_teacher,
 )
 
-app = FastAPI(title="School Evaluation API")
+app = FastAPI(
+    title="School Evaluation API",
+    description=(
+        "Instructional observation, performance review, professional growth goals, "
+        "leadership reporting, and AI-assisted summaries—all scoped by Supabase RLS."
+    ),
+    version="1.1.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(performance_reviews_routes.router)
+app.include_router(reports_routes.router)
 
 
 class TeacherCreate(BaseModel):
@@ -84,12 +96,16 @@ class GoalCreate(BaseModel):
     description: str
     target_date: str
     status: str = "active"
+    progress_percent: int = Field(default=0, ge=0, le=100)
+    progress_note: Optional[str] = None
 
 
 class GoalUpdate(BaseModel):
     description: Optional[str] = None
     target_date: Optional[str] = None
     status: Optional[str] = None
+    progress_percent: Optional[int] = Field(default=None, ge=0, le=100)
+    progress_note: Optional[str] = None
 
 
 class AdminPrivateNoteCreate(BaseModel):
@@ -384,7 +400,10 @@ def create_goal(body: GoalCreate, ctx: AuthedSupabase = Depends(get_authed_supab
         "description": body.description,
         "target_date": body.target_date,
         "status": body.status,
+        "progress_percent": body.progress_percent,
+        "progress_note": body.progress_note,
     }
+    row = {k: v for k, v in row.items() if v is not None}
     res = supabase.table("goals").insert(row).execute()
     data = res.data or []
     if not data:
@@ -403,6 +422,9 @@ def update_goal(
         raise HTTPException(status_code=400, detail="No fields to update.")
     if "status" in patch and patch["status"] not in _GOAL_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid goal status.")
+    if "progress_percent" in patch and patch["progress_percent"] is not None:
+        if not 0 <= int(patch["progress_percent"]) <= 100:
+            raise HTTPException(status_code=400, detail="progress_percent must be between 0 and 100.")
     res = supabase.table("goals").update(patch).eq("id", str(goal_id)).execute()
     data = res.data or []
     if not data:

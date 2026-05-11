@@ -10,7 +10,9 @@ from views import (
     instructional_summary,
     observation_detail,
     overview,
+    performance_review,
     professional_goals,
+    reporting,
 )
 
 
@@ -70,6 +72,15 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stSidebarNav"] { font-size: 0.95rem; }
+        .block-container { padding-top: 1.2rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if "supabase" not in st.session_state:
         st.session_state.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -100,21 +111,32 @@ def main() -> None:
         sess = st.session_state.get("supabase_session")
         if sess:
             st.session_state.supabase_session = sess
+            st.markdown("##### Workspace")
             nav = st.radio(
                 "Navigate",
                 [
                     "Overview & roster",
                     "Classroom observation",
                     "Observation detail",
+                    "Instructional performance review",
                     "Professional growth goals",
                     "Instructional effectiveness summary",
+                    "Reports & exports",
                 ],
                 key="main_nav",
+                label_visibility="collapsed",
             )
             _render_instructional_leadership_notes()
+            st.caption(
+                "AI-generated text supports human judgment; it does not replace required "
+                "evaluation or employment decisions."
+            )
 
     st.title("School Evaluation Platform")
-    st.caption("Evidence-based instructional growth · Powered by your Supabase project")
+    st.caption(
+        "Evidence-based instructional growth, performance review, and leadership reporting · "
+        "Powered by your Supabase project"
+    )
 
     if not st.session_state.get("supabase_session"):
         st.info("Sign in with your school credentials to continue.")
@@ -126,10 +148,21 @@ def main() -> None:
         classroom_observation.render()
     elif nav == "Observation detail":
         observation_detail.render()
+    elif nav == "Instructional performance review":
+        performance_review.render()
     elif nav == "Professional growth goals":
         professional_goals.render()
     elif nav == "Instructional effectiveness summary":
         instructional_summary.render()
+    elif nav == "Reports & exports":
+        reporting.render()
+
+    st.divider()
+    st.caption(
+        "Prototype scope: classroom observations, formal performance review packets, "
+        "professional growth goals with progress monitoring, leadership notes, CSV reporting, "
+        "and optional OpenAI-backed digests when `OPENAI_API_KEY` is configured."
+    )
 
 
 if __name__ == "__main__":
