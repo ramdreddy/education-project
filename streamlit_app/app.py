@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, Dict
+
 import streamlit as st
 from supabase import create_client
 
@@ -20,6 +22,98 @@ def _require_supabase() -> None:
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.error("Set SUPABASE_URL and SUPABASE_KEY in your `.env` at the project root.")
         st.stop()
+
+
+def _fetch_dashboard_stats() -> Dict[str, Any]:
+    """Aggregate counts visible to the signed-in user (RLS-scoped via API)."""
+    stats = {
+        "roster": 0,
+        "observations": 0,
+        "goals": 0,
+        "reviews": 0,
+    }
+    r = api_request("GET", "/teachers")
+    if r.is_success and isinstance(r.json(), list):
+        stats["roster"] = len(r.json())
+    r = api_request("GET", "/observations")
+    if r.is_success and isinstance(r.json(), list):
+        stats["observations"] = len(r.json())
+    r = api_request("GET", "/goals")
+    if r.is_success and isinstance(r.json(), list):
+        stats["goals"] = len(r.json())
+    r = api_request("GET", "/performance-reviews")
+    if r.is_success and isinstance(r.json(), list):
+        stats["reviews"] = len(r.json())
+    return stats
+
+
+def _render_sidebar_brand() -> None:
+    st.markdown(
+        """
+        <div style="margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid rgba(148,163,184,0.35);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="min-width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#0f172a,#1d4ed8);
+                        color:#f8fafc;display:flex;align-items:center;justify-content:center;
+                        font-weight:700;font-size:0.95rem;letter-spacing:0.02em;">SA</div>
+            <div>
+              <div style="font-size:1.05rem;font-weight:700;color:#0f172a;line-height:1.2;">School Admin Portal</div>
+              <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">Instructional effectiveness suite</div>
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_dashboard_strip() -> None:
+    """Top-of-page executive strip: positioning copy + key metrics."""
+    if st.button("Refresh overview stats", key="dash_stats_refresh"):
+        st.session_state.pop("_dash_stats", None)
+
+    if "_dash_stats" not in st.session_state:
+        st.session_state["_dash_stats"] = _fetch_dashboard_stats()
+    s = st.session_state["_dash_stats"]
+
+    hero_l, hero_r = st.columns([2.1, 1])
+    with hero_l:
+        st.markdown("### School Evaluation Platform")
+        st.caption(
+            "Evidence-based instructional growth, performance review, and leadership reporting · "
+            "Powered by your Supabase project"
+        )
+    with hero_r:
+        st.markdown("")
+        st.caption("**Session** · authenticated")
+        st.caption("Use the workspace menu in the sidebar to move between modules.")
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric(
+            label="Educators on roster",
+            value=int(s.get("roster", 0)),
+            help="Profiles visible under your current access scope.",
+        )
+    with m2:
+        st.metric(
+            label="Observation records",
+            value=int(s.get("observations", 0)),
+            help="Walkthroughs and visits you may view per policy.",
+        )
+    with m3:
+        st.metric(
+            label="Professional growth goals",
+            value=int(s.get("goals", 0)),
+            help="Goals tied to your educator profile (or empty if no profile yet).",
+        )
+    with m4:
+        st.metric(
+            label="Performance review packets",
+            value=int(s.get("reviews", 0)),
+            help="Formal review packets you authored or can read as subject.",
+        )
+
+    st.divider()
 
 
 def _render_instructional_leadership_notes() -> None:
@@ -68,7 +162,7 @@ def _render_instructional_leadership_notes() -> None:
 def main() -> None:
     _require_supabase()
     st.set_page_config(
-        page_title="School Evaluation Platform",
+        page_title="School Admin Portal",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -76,7 +170,9 @@ def main() -> None:
         """
         <style>
         div[data-testid="stSidebarNav"] { font-size: 0.95rem; }
-        .block-container { padding-top: 1.2rem; }
+        .block-container { padding-top: 1.1rem; }
+        div[data-testid="stMetricValue"] { font-size: 1.65rem; font-weight: 600; }
+        div[data-testid="stMetricLabel"] { font-size: 0.82rem; text-transform: none; letter-spacing: 0.01em; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -88,7 +184,8 @@ def main() -> None:
 
     nav = None
     with st.sidebar:
-        st.title("Account")
+        _render_sidebar_brand()
+        st.subheader("Account")
         email = st.text_input("Email", key="auth_email")
         password = st.text_input("Password", type="password", key="auth_pw")
         if st.button("Sign in"):
@@ -132,15 +229,19 @@ def main() -> None:
                 "evaluation or employment decisions."
             )
 
-    st.title("School Evaluation Platform")
-    st.caption(
-        "Evidence-based instructional growth, performance review, and leadership reporting · "
-        "Powered by your Supabase project"
-    )
-
     if not st.session_state.get("supabase_session"):
-        st.info("Sign in with your school credentials to continue.")
+        intro_l, intro_r = st.columns([1.4, 1])
+        with intro_l:
+            st.markdown("## School Evaluation Platform")
+            st.caption(
+                "Sign in to access the **School Admin Portal** workspace—observations, "
+                "performance reviews, goals, reporting, and leadership notes."
+            )
+        with intro_r:
+            st.info("Use the **sidebar** to sign in with your school Supabase credentials.")
         return
+
+    _render_dashboard_strip()
 
     if nav == "Overview & roster":
         overview.render()
