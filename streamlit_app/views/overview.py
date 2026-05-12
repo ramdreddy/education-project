@@ -9,10 +9,18 @@ from http_api import api_request
 
 def render() -> None:
     st.header("Overview & educator roster")
-    st.caption(
-        "Maintain your organization directory. Each educator completes a one-time profile "
-        "linking their account to instructional records."
-    )
+    is_admin = bool(st.session_state.get("is_platform_admin"))
+    if is_admin:
+        st.caption(
+            "Maintain your organization directory. Each educator completes a one-time profile "
+            "linking their account to instructional records."
+        )
+    else:
+        st.caption(
+            "Your **educator profile** row is private to you in this table; the roster directory "
+            "for scheduling is available wherever you select colleagues (e.g. classroom observation). "
+            "Platform administrators see the full roster here."
+        )
 
     if st.button("Refresh roster", key="refresh_teachers"):
         r = api_request("GET", "/teachers")

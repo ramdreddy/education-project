@@ -35,3 +35,20 @@ def assert_teacher_belongs_to_user(supabase: Client, teacher_id: str, user_id: s
     res = supabase.table("teachers").select("id").eq("id", teacher_id).eq("user_id", user_id).limit(1).execute()
     if not (res.data or []):
         raise HTTPException(status_code=403, detail="Not permitted for this educator profile.")
+
+
+def is_platform_admin(supabase: Client, user_id: str) -> bool:
+    res = (
+        supabase.table("platform_admins")
+        .select("user_id")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    return bool(res.data)
+
+
+def assert_teacher_access_or_admin(supabase: Client, teacher_id: str, user_id: str) -> None:
+    if is_platform_admin(supabase, user_id):
+        return
+    assert_teacher_belongs_to_user(supabase, teacher_id, user_id)

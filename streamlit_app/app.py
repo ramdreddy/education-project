@@ -35,7 +35,7 @@ def _fetch_dashboard_stats() -> Dict[str, Any]:
         "leave_pending": 0,
         "substitute_open": 0,
     }
-    r = api_request("GET", "/teachers")
+    r = api_request("GET", "/directory/educators")
     if r.is_success and isinstance(r.json(), list):
         stats["roster"] = len(r.json())
     r = api_request("GET", "/observations")
@@ -58,7 +58,33 @@ def _fetch_dashboard_stats() -> Dict[str, Any]:
     return stats
 
 
-def _render_sidebar_brand() -> None:
+def _ensure_auth_context() -> None:
+    """Load platform admin flag once per session (backend mirrors RLS)."""
+    if "is_platform_admin" in st.session_state:
+        return
+    r = api_request("GET", "/auth/context")
+    if r.is_success and isinstance(r.json(), dict):
+        st.session_state["is_platform_admin"] = bool(r.json().get("is_platform_admin"))
+    else:
+        st.session_state["is_platform_admin"] = False
+
+
+def _workspace_nav_options() -> list[str]:
+    staff = [
+        "Overview & roster",
+        "Classroom observation",
+        "Observation detail",
+        "Instructional performance review",
+        "Professional growth goals",
+        "Leave & substitutes",
+    ]
+    admin_only = [
+        "Instructional effectiveness summary",
+        "Reports & exports",
+    ]
+    if st.session_state.get("is_platform_admin"):
+        return staff + admin_only
+    return staff
     st.markdown(
         """
         <div style="margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid rgba(148,163,184,0.35);">
@@ -95,7 +121,8 @@ def _render_dashboard_strip() -> None:
         )
     with hero_r:
         st.markdown("")
-        st.caption("**Session** · authenticated")
+        role = "**Platform administrator**" if st.session_state.get("is_platform_admin") else "**Staff**"
+        st.caption(f"**Session** · authenticated · {role}")
         st.caption("Use the workspace menu in the sidebar to move between modules.")
 
     m1, m2, m3, m4, m5, m6 = st.columns(6)
@@ -215,6 +242,8 @@ def main() -> None:
             try:
                 res = sb.auth.sign_in_with_password({"email": email, "password": password})
                 st.session_state.supabase_session = res.session
+                st.session_state.pop("is_platform_admin", None)
+                st.session_state.pop("_nav_role_key", None)
                 st.success("Signed in.")
                 st.rerun()
             except Exception as e:  # noqa: BLE001 — surface auth errors to the user
@@ -223,6 +252,8 @@ def main() -> None:
             sb.auth.sign_out()
             st.session_state.pop("supabase_session", None)
             st.session_state.pop("supabase", None)
+            st.session_state.pop("is_platform_admin", None)
+            st.session_state.pop("_nav_role_key", None)
             for k in list(st.session_state.keys()):
                 if k.startswith("_"):
                     del st.session_state[k]
@@ -231,19 +262,15 @@ def main() -> None:
         sess = st.session_state.get("supabase_session")
         if sess:
             st.session_state.supabase_session = sess
+            _ensure_auth_context()
+            rk = "admin" if st.session_state.get("is_platform_admin") else "staff"
+            if st.session_state.get("_nav_role_key") != rk:
+                st.session_state.pop("main_nav", None)
+                st.session_state["_nav_role_key"] = rk
             st.markdown("##### Workspace")
             nav = st.radio(
                 "Navigate",
-                [
-                    "Overview & roster",
-                    "Classroom observation",
-                    "Observation detail",
-                    "Instructional performance review",
-                    "Professional growth goals",
-                    "Instructional effectiveness summary",
-                    "Leave & substitutes",
-                    "Reports & exports",
-                ],
+                _workspace_nav_options(),
                 key="main_nav",
                 label_visibility="collapsed",
             )
@@ -265,6 +292,7 @@ def main() -> None:
             st.info("Use the **sidebar** to sign in with your school Supabase credentials.")
         return
 
+    _ensure_auth_context()
     _render_dashboard_strip()
 
     if nav == "Overview & roster":
@@ -288,7 +316,8 @@ def main() -> None:
     st.caption(
         "Prototype scope: classroom observations, formal performance review packets, "
         "professional growth goals with progress monitoring, leadership notes, CSV reporting, "
-        "and optional OpenAI-backed digests when `OPENAI_API_KEY` is configured."
+        "leave & substitutes, optional OpenAI-backed digests when `OPENAI_API_KEY` is configured, "
+        "and `platform_admins` in Supabase for organization-wide visibility."
     )
 
 

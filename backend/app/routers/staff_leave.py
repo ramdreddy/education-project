@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
-from app.authz import assert_teacher_belongs_to_user, get_user_id_or_401
+from app.authz import assert_teacher_belongs_to_user, get_user_id_or_401, is_platform_admin
 from app.deps import AuthedSupabase, get_authed_supabase
 
 router = APIRouter(prefix="/staff", tags=["Leave & substitutes"])
@@ -22,6 +22,8 @@ _SUB_STATUSES = frozenset({"draft", "confirmed", "in_place", "completed"})
 
 
 def _is_leave_approver(supabase: Any, uid: str) -> bool:
+    if is_platform_admin(supabase, uid):
+        return True
     res = supabase.table("leave_approvers").select("user_id").eq("user_id", uid).limit(1).execute()
     return bool(res.data)
 
@@ -95,7 +97,7 @@ def list_leave_requests(
             raise HTTPException(status_code=400, detail="Invalid status filter.")
         q = q.eq("status", status)
     if teacher_id is not None:
-        if not _is_leave_approver(supabase, uid):
+        if not _is_leave_approver(supabase, uid) and not is_platform_admin(supabase, uid):
             assert_teacher_belongs_to_user(supabase, str(teacher_id), uid)
         q = q.eq("teacher_id", str(teacher_id))
     res = q.execute()
@@ -127,7 +129,8 @@ def create_leave_request(
 ) -> Dict[str, Any]:
     supabase = ctx.client
     uid = get_user_id_or_401(supabase, ctx.access_token)
-    assert_teacher_belongs_to_user(supabase, str(body.teacher_id), uid)
+    if not is_platform_admin(supabase, uid):
+        assert_teacher_belongs_to_user(supabase, str(body.teacher_id), uid)
     row: Dict[str, Any] = {
         "teacher_id": str(body.teacher_id),
         "request_type": body.request_type,

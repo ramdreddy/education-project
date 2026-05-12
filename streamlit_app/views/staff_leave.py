@@ -29,7 +29,7 @@ def _is_approver() -> bool:
 
 
 def _teacher_name_map() -> Dict[str, str]:
-    r = api_request("GET", "/teachers")
+    r = api_request("GET", "/directory/educators")
     if not r.is_success or not isinstance(r.json(), list):
         return {}
     return {str(t["id"]): str(t.get("full_name", "—")) for t in r.json()}
@@ -47,9 +47,9 @@ def render() -> None:
         st.success("You are registered as a **leave approver** for this organization.")
     else:
         st.info(
-            "**Approvers:** an administrator must add your user UUID to the `leave_approvers` "
-            "table in Supabase before you can approve others’ requests. Staff may always submit "
-            "and manage their own pending requests."
+            "**Approvers:** add your account to `leave_approvers`, or ask a **platform administrator** "
+            "(see `platform_admins` in Supabase) to approve requests. Staff may always submit and "
+            "withdraw their own pending requests."
         )
 
     me = _me_teacher()

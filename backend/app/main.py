@@ -9,12 +9,14 @@ from pydantic import BaseModel, Field
 from supabase import Client
 
 from app.authz import (
-    assert_teacher_belongs_to_user,
+    assert_teacher_access_or_admin,
     fetch_my_teacher_row,
     get_user_id_or_401,
 )
 from app.deps import AuthedSupabase, get_authed_supabase, get_supabase
 from app.rubric import build_classroom_rubric
+from app.routers import auth_context as auth_context_routes
+from app.routers import directory as directory_routes
 from app.routers import performance_reviews as performance_reviews_routes
 from app.routers import reports as reports_routes
 from app.routers import staff_leave as staff_leave_routes
@@ -28,8 +30,8 @@ app = FastAPI(
     title="School Evaluation API",
     description=(
         "Instructional observation, performance review, professional growth goals, "
-        "staff leave & substitute coverage, leadership reporting, and AI-assisted summaries—"
-        "all scoped by Supabase RLS."
+        "staff leave & substitute coverage, role-aware navigation for platform administrators, "
+        "leadership reporting, and AI-assisted summaries—all scoped by Supabase RLS."
     ),
     version="1.1.0",
 )
@@ -45,6 +47,8 @@ app.add_middleware(
 app.include_router(performance_reviews_routes.router)
 app.include_router(reports_routes.router)
 app.include_router(staff_leave_routes.router)
+app.include_router(auth_context_routes.router)
+app.include_router(directory_routes.router)
 
 
 class TeacherCreate(BaseModel):
@@ -374,7 +378,7 @@ def list_goals(
     uid = get_user_id_or_401(supabase, ctx.access_token)
     tid: Optional[str]
     if teacher_id is not None:
-        assert_teacher_belongs_to_user(supabase, str(teacher_id), uid)
+        assert_teacher_access_or_admin(supabase, str(teacher_id), uid)
         tid = str(teacher_id)
     else:
         me = fetch_my_teacher_row(supabase, uid)
@@ -397,7 +401,7 @@ def create_goal(body: GoalCreate, ctx: AuthedSupabase = Depends(get_authed_supab
     uid = get_user_id_or_401(supabase, ctx.access_token)
     if body.status not in _GOAL_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid goal status.")
-    assert_teacher_belongs_to_user(supabase, str(body.teacher_id), uid)
+    assert_teacher_access_or_admin(supabase, str(body.teacher_id), uid)
     row = {
         "teacher_id": str(body.teacher_id),
         "description": body.description,

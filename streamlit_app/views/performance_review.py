@@ -10,7 +10,7 @@ from http_api import api_request
 
 
 def _teachers() -> List[Dict[str, Any]]:
-    r = api_request("GET", "/teachers")
+    r = api_request("GET", "/directory/educators")
     if not r.is_success:
         st.error(r.text)
         return []
