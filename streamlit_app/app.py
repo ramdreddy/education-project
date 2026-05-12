@@ -15,6 +15,7 @@ from views import (
     performance_review,
     professional_goals,
     reporting,
+    staff_leave,
 )
 
 
@@ -31,6 +32,8 @@ def _fetch_dashboard_stats() -> Dict[str, Any]:
         "observations": 0,
         "goals": 0,
         "reviews": 0,
+        "leave_pending": 0,
+        "substitute_open": 0,
     }
     r = api_request("GET", "/teachers")
     if r.is_success and isinstance(r.json(), list):
@@ -44,6 +47,14 @@ def _fetch_dashboard_stats() -> Dict[str, Any]:
     r = api_request("GET", "/performance-reviews")
     if r.is_success and isinstance(r.json(), list):
         stats["reviews"] = len(r.json())
+    r = api_request("GET", "/staff/leave-requests?status=pending")
+    if r.is_success and isinstance(r.json(), list):
+        stats["leave_pending"] = len(r.json())
+    r = api_request("GET", "/staff/substitute-plans")
+    if r.is_success and isinstance(r.json(), list):
+        stats["substitute_open"] = sum(
+            1 for x in r.json() if str(x.get("status", "")).lower() != "completed"
+        )
     return stats
 
 
@@ -87,7 +98,7 @@ def _render_dashboard_strip() -> None:
         st.caption("**Session** · authenticated")
         st.caption("Use the workspace menu in the sidebar to move between modules.")
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
     with m1:
         st.metric(
             label="Educators on roster",
@@ -111,6 +122,18 @@ def _render_dashboard_strip() -> None:
             label="Performance review packets",
             value=int(s.get("reviews", 0)),
             help="Formal review packets you authored or can read as subject.",
+        )
+    with m5:
+        st.metric(
+            label="Leave requests pending",
+            value=int(s.get("leave_pending", 0)),
+            help="Awaiting action—visible to request owners and configured approvers.",
+        )
+    with m6:
+        st.metric(
+            label="Substitute coverage rows (open)",
+            value=int(s.get("substitute_open", 0)),
+            help="Substitute plans not yet marked completed in your visibility scope.",
         )
 
     st.divider()
@@ -218,6 +241,7 @@ def main() -> None:
                     "Instructional performance review",
                     "Professional growth goals",
                     "Instructional effectiveness summary",
+                    "Leave & substitutes",
                     "Reports & exports",
                 ],
                 key="main_nav",
@@ -255,6 +279,8 @@ def main() -> None:
         professional_goals.render()
     elif nav == "Instructional effectiveness summary":
         instructional_summary.render()
+    elif nav == "Leave & substitutes":
+        staff_leave.render()
     elif nav == "Reports & exports":
         reporting.render()
 

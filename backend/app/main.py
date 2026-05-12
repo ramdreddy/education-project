@@ -17,6 +17,7 @@ from app.deps import AuthedSupabase, get_authed_supabase, get_supabase
 from app.rubric import build_classroom_rubric
 from app.routers import performance_reviews as performance_reviews_routes
 from app.routers import reports as reports_routes
+from app.routers import staff_leave as staff_leave_routes
 from app.services.ai_service import (
     observation_record_text,
     suggest_professional_development_goals,
@@ -27,7 +28,8 @@ app = FastAPI(
     title="School Evaluation API",
     description=(
         "Instructional observation, performance review, professional growth goals, "
-        "leadership reporting, and AI-assisted summaries—all scoped by Supabase RLS."
+        "staff leave & substitute coverage, leadership reporting, and AI-assisted summaries—"
+        "all scoped by Supabase RLS."
     ),
     version="1.1.0",
 )
@@ -42,6 +44,7 @@ app.add_middleware(
 
 app.include_router(performance_reviews_routes.router)
 app.include_router(reports_routes.router)
+app.include_router(staff_leave_routes.router)
 
 
 class TeacherCreate(BaseModel):
