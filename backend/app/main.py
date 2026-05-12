@@ -55,12 +55,16 @@ class TeacherCreate(BaseModel):
     full_name: str
     email: Optional[str] = None
     department: Optional[str] = None
+    school_id: Optional[UUID] = None
 
 
 class TeacherUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[str] = None
     department: Optional[str] = None
+    school_id: Optional[UUID] = None
+    pto_allowance_days: Optional[float] = None
+    pto_used_days: Optional[float] = None
 
 
 class ObservationCreate(BaseModel):
@@ -154,12 +158,14 @@ def create_teacher(
     user = supabase.auth.get_user(jwt=ctx.access_token)
     if not user or not user.user:
         raise HTTPException(status_code=401, detail="Invalid session.")
-    row = {
+    row: Dict[str, Any] = {
         "user_id": user.user.id,
         "full_name": body.full_name,
         "email": body.email,
         "department": body.department,
     }
+    if body.school_id is not None:
+        row["school_id"] = str(body.school_id)
     res = supabase.table("teachers").insert(row).execute()
     data = res.data or []
     if not data:

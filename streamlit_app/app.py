@@ -16,6 +16,7 @@ from views import (
     professional_goals,
     reporting,
     staff_leave,
+    staff_schedule_pto,
 )
 
 
@@ -77,6 +78,7 @@ def _workspace_nav_options() -> list[str]:
         "Instructional performance review",
         "Professional growth goals",
         "Leave & substitutes",
+        "Schedule & PTO",
     ]
     admin_only = [
         "Instructional effectiveness summary",
@@ -85,6 +87,9 @@ def _workspace_nav_options() -> list[str]:
     if st.session_state.get("is_platform_admin"):
         return staff + admin_only
     return staff
+
+
+def _render_sidebar_brand() -> None:
     st.markdown(
         """
         <div style="margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid rgba(148,163,184,0.35);">
@@ -309,6 +314,8 @@ def main() -> None:
         instructional_summary.render()
     elif nav == "Leave & substitutes":
         staff_leave.render()
+    elif nav == "Schedule & PTO":
+        staff_schedule_pto.render()
     elif nav == "Reports & exports":
         reporting.render()
 
