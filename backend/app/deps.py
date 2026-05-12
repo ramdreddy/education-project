@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client, create_client
 
 from app.settings import SUPABASE_KEY, SUPABASE_URL
@@ -23,11 +24,17 @@ class AuthedSupabase:
     access_token: str
 
 
-def get_authed_supabase(authorization: Optional[str] = Header(default=None)) -> AuthedSupabase:
+# Registers Bearer auth in OpenAPI so /docs shows **Authorize** for protected routes.
+_http_bearer = HTTPBearer(auto_error=False)
+
+
+def get_authed_supabase(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_http_bearer),
+) -> AuthedSupabase:
     require_supabase_config()
-    if not authorization or not authorization.lower().startswith("bearer "):
+    if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header.")
-    token = authorization[7:].strip()
+    token = credentials.credentials.strip()
     if not token:
         raise HTTPException(status_code=401, detail="Empty bearer token.")
     client = create_client(SUPABASE_URL, SUPABASE_KEY)
