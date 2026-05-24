@@ -8,6 +8,7 @@ import streamlit as st
 
 from http_api import api_request
 from ui_ai import render_ai_bullets
+from ui_rubric import render_instructional_rubric
 
 
 def _load_observations() -> List[Dict[str, Any]]:
@@ -71,9 +72,14 @@ def render() -> None:
         st.write("**Observed at:**", detail.get("observed_at", "—"))
         st.write("**Lesson / segment:**", detail.get("lesson_title") or "—")
         st.write("**Focus:**", detail.get("focus_area") or "—")
-    with c2:
-        st.write("**Holistic score:**", detail.get("overall_score") if detail.get("overall_score") is not None else "—")
-        st.write("**Rubric:**", detail.get("rubric") or {})
+
+    overall = detail.get("overall_score")
+    render_instructional_rubric(
+        detail.get("rubric"),
+        overall_score=float(overall) if overall is not None else None,
+        key_prefix=f"od_{choice}",
+    )
+
     st.markdown("**Narrative notes**")
     st.text_area("Notes", value=detail.get("notes") or "", height=120, disabled=True, key="od_notes_ro")
     st.text_area("Strengths", value=detail.get("strengths") or "", height=80, disabled=True, key="od_str_ro")

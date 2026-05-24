@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 import streamlit as st
 
 from http_api import api_request
+from ui_rubric import render_instructional_rubric, rubric_summary_line
 
 
 def _load_teachers() -> List[Dict[str, Any]]:
@@ -71,8 +72,18 @@ def render() -> None:
         }
         r = api_request("POST", "/observations/classroom", json=payload)
         if r.is_success:
+            saved = r.json()
             st.success("Observation recorded.")
-            st.json(r.json())
+            render_instructional_rubric(
+                saved.get("rubric"),
+                overall_score=(
+                    float(saved["overall_score"])
+                    if saved.get("overall_score") is not None
+                    else None
+                ),
+                key_prefix="obs_saved",
+            )
+            st.session_state.pop("_obs_cache", None)
         else:
             st.error(r.text)
 
@@ -86,5 +97,34 @@ def render() -> None:
             st.session_state["_obs_cache"] = lr.json()
         else:
             st.error(lr.text)
-    if "_obs_cache" in st.session_state and st.session_state["_obs_cache"] is not None:
-        st.dataframe(st.session_state["_obs_cache"], use_container_width=True)
+    cached = st.session_state.get("_obs_cache")
+    if cached is not None:
+        if not cached:
+            st.info("No observation records in this view yet.")
+        else:
+            for o in cached:
+                oid = str(o.get("id", ""))
+                when = str(o.get("observed_at", ""))[:16] or "—"
+                lesson = o.get("lesson_title") or "Observation"
+                overall = o.get("overall_score")
+                rubric_line = rubric_summary_line(o.get("rubric"), overall)
+                title = f"{when} · {lesson} · {rubric_line}"
+                with st.expander(title, expanded=False):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.write("**Educator ID:**", str(o.get("teacher_id", "—"))[:8] + "…")
+                        st.write("**Focus:**", o.get("focus_area") or "—")
+                    render_instructional_rubric(
+                        o.get("rubric"),
+                        overall_score=float(overall) if overall is not None else None,
+                        key_prefix=f"obs_list_{oid}",
+                    )
+                    if o.get("notes"):
+                        st.markdown("**Observation notes**")
+                        st.write(o.get("notes"))
+                    if o.get("strengths"):
+                        st.markdown("**Strengths**")
+                        st.write(o.get("strengths"))
+                    if o.get("growth_areas"):
+                        st.markdown("**Growth areas**")
+                        st.write(o.get("growth_areas"))
